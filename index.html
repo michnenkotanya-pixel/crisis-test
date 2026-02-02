@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Где я в кризисе сейчас?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-6 md:p-8 transition-all duration-500">
+        <!-- Экран приветствия -->
+        <div id="start-screen" class="space-y-6 text-center">
+            <h1 class="text-3xl font-semibold text-gray-800 leading-tight">Где я в кризисе сейчас?</h1>
+            <p class="text-gray-600 leading-relaxed text-lg text-left">
+                Отметь, что про тебя за последние 7–10 дней. Это не диагноз, а быстрый замер нагрузки нервной системы.
+            </p>
+            <button onclick="startQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-2xl transition-all shadow-lg active:scale-95">
+                Начать
+            </button>
+        </div>
+
+        <!-- Экран вопросов -->
+        <div id="quiz-screen" class="hidden space-y-6">
+            <div class="flex items-center justify-between">
+                <span id="question-counter" class="text-xs font-bold text-gray-400 uppercase tracking-widest"></span>
+                <div class="w-1/2 bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <div id="progress" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div id="question-container" class="fade-in">
+                <h2 id="block-title" class="text-xs uppercase tracking-widest text-indigo-500 font-bold mb-2"></h2>
+                <p id="question-text" class="text-xl text-gray-800 font-medium mb-8 min-h-[80px]"></p>
+                <div id="options-container" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Экран результата -->
+        <div id="result-screen" class="hidden fade-in space-y-6">
+            <div class="text-center">
+                <span id="result-badge" class="px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3 inline-block"></span>
+                <h2 id="result-title" class="text-3xl font-bold text-gray-800"></h2>
+            </div>
+            
+            <div class="bg-gray-50 rounded-2xl p-6 text-gray-700 leading-relaxed border border-gray-100" id="result-description"></div>
+
+            <div class="space-y-4">
+                <h3 class="font-bold text-gray-800 flex items-center">
+                    <span class="mr-2">📅</span> На ближайшие 72 часа:
+                </h3>
+                <ul id="recommendations-list" class="space-y-3 text-gray-600 list-none"></ul>
+            </div>
+
+            <div id="cta-container" class="pt-2 space-y-3"></div>
+            
+            <button onclick="location.reload()" class="w-full text-sm text-gray-400 hover:text-gray-600 py-4">Пройти тест заново</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * НАСТРОЙКИ ССЫЛОК
+         */
+        const MY_TG_LINK = "https://t.me/Tatyana_Michnenko"; 
+        const LINKS = {
+            volna_checklist: MY_TG_LINK,
+            volna_tg: MY_TG_LINK + "?text=ВOЛНА",
+            krizis_plan: MY_TG_LINK,
+            krizis_tg: MY_TG_LINK + "?text=КРИЗИС",
+            peregruz_tg: MY_TG_LINK + "?text=ПЕРЕГРУЗ",
+            diagnostika: MY_TG_LINK
+        };
+
+        const questions = [
+            { text: "Мысли ускорились, трудно “остановить голову”.", block: "Блок 1. Мозг", type: "binary" },
+            { text: "Постоянно просчитываю и прокручиваю сценарии.", block: "Блок 1. Мозг", type: "binary" },
+            { text: "Сложно принимать решения, даже мелкие.", block: "Блок 1. Мозг", type: "binary" },
+            { text: "Много самокритики: “я должна справляться лучше”.", block: "Блок 1. Мозг", type: "binary" },
+            { text: "Сон сбился (засыпание / пробуждения / ранний подъём).", block: "Блок 2. Тело", type: "binary" },
+            { text: "Скачет аппетит или тянет на сладкое/кофе/солёное.", block: "Блок 2. Тело", type: "binary" },
+            { text: "ЖКТ реагирует (спазмы, тяжесть, запор/понос).", block: "Блок 2. Тело", type: "binary" },
+            { text: "Зажимы: челюсть/шея/плечи/грудь, усталость “в костях”.", block: "Блок 2. Тело", type: "binary" },
+            { text: "Гиперконтроль: списки, проверки, “всё держу на себе”.", block: "Блок 3. Поведение", type: "binary" },
+            { text: "Избегание: прокрастинация, залипание, “не могу начать”.", block: "Блок 3. Поведение", type: "binary" },
+            { text: "Качели: то “собралась и лечу”, то “лежу и не могу”.", block: "Блок 3. Поведение", type: "binary" },
+            { text: "Сузился мир: меньше общения, меньше желаний.", block: "Блок 3. Поведение", type: "binary" },
+            { text: "Тревога фоном, даже когда вроде всё ок.", block: "Блок 4. Эмоции", type: "binary" },
+            { text: "Раздражительность/слёзы “из ничего”.", block: "Блок 4. Эмоции", type: "binary" },
+            { text: "Чувство бессилия или безнадёги.", block: "Блок 4. Эмоции", type: "binary" },
+            { text: "Тяжело радоваться, как будто “внутри выключили свет”.", block: "Блок 4. Эмоции", type: "binary" },
+            { 
+                text: "Какой кризис сейчас доминирует?", 
+                block: "Классификация", 
+                type: "single", 
+                options: ["Разрыв / конфликт / расставание", "Потеря (человека/здоровья/денег)", "Переезд / эмиграция / смена жизни"] 
+            },
+            { 
+                text: "На какой стадии ты сейчас?", 
+                block: "Классификация", 
+                type: "single", 
+                options: ["Шок/разгон (0–6 недель)", "Откат/перегруз (2–6 месяцев)", "Перестройка (6–18 месяцев)"] 
+            }
+        ];
+
+        let currentStep = 0;
+        let score = 0;
+
+        function startQuiz() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const q = questions[currentStep];
+            const optionsContainer = document.getElementById('options-container');
+            document.getElementById('question-counter').innerText = `Вопрос ${currentStep + 1} / ${questions.length}`;
+            document.getElementById('progress').style.width = `${(currentStep / questions.length) * 100}%`;
+            document.getElementById('block-title').innerText = q.block;
+            document.getElementById('question-text').innerText = q.text;
+            optionsContainer.innerHTML = '';
+            if (q.type === 'binary') {
+                optionsContainer.appendChild(createOptionButton("Да", () => handleAnswer(true)));
+                optionsContainer.appendChild(createOptionButton("Нет", () => handleAnswer(false)));
+            } else {
+                q.options.forEach(opt => {
+                    optionsContainer.appendChild(createOptionButton(opt, () => handleAnswer(null)));
+                });
+            }
+        }
+
+        function createOptionButton(text, callback) {
+            const btn = document.createElement('button');
+            btn.className = "w-full text-left p-4 rounded-2xl border-2 border-gray-100 hover:border-indigo-400 hover:bg-indigo-50 transition-all font-medium text-gray-700 active:scale-[0.98]";
+            btn.innerText = text;
+            btn.onclick = callback;
+            return btn;
+        }
+
+        function handleAnswer(isYes) {
+            if (isYes === true && currentStep < 16) score++;
+            currentStep++;
+            if (currentStep < questions.length) {
+                showQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-description');
+            const badge = document.getElementById('result-badge');
+            const list = document.getElementById('recommendations-list');
+            const cta = document.getElementById('cta-container');
+
+            if (score <= 3) {
+                badge.innerText = "0–3 БАЛЛА";
+                badge.className = "px-4 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 uppercase mb-3 inline-block";
+                title.innerText = "Лёгкая волна";
+                desc.innerText = "Нервная система напряжена, но держит форму. Главная ловушка здесь — игнорировать сигналы и довести себя до перегруза.";
+                renderItems(list, ["Спите и ешьте по расписанию", "1 маленькое завершенное дело в день", "Меньше новостей и соцсетей"]);
+                addCTA(cta, "Забрать чек-лист стабилизации", LINKS.volna_checklist, "bg-indigo-600 text-white");
+                addCTA(cta, "Написать мне 'ВОЛНА'", LINKS.volna_tg, "bg-gray-100 text-gray-800");
+            } else if (score <= 7) {
+                badge.innerText = "4–7 БАЛЛОВ";
+                badge.className = "px-4 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 uppercase mb-3 inline-block";
+                title.innerText = "Ощутимый кризис";
+                desc.innerText = "Это уже не просто усталость. Мозг работает в режиме «я держусь», поэтому вас качает от контроля к апатии. Важно переключиться на бережный режим.";
+                renderItems(list, ["Оставьте только один главный приоритет", "Базовый ритм: вода, еда, сон", "20 минут тишины без телефона"]);
+                addCTA(cta, "Получить план ‘Антикризис’", LINKS.krizis_plan, "bg-indigo-600 text-white");
+                addCTA(cta, "Написать мне 'КРИЗИС'", LINKS.krizis_tg, "bg-gray-100 text-gray-800");
+            } else {
+                badge.innerText = "8+ БАЛЛОВ";
+                badge.className = "px-4 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 uppercase mb-3 inline-block";
+                title.innerText = "Система перегружена";
+                desc.innerText = "Организм в перегрузе. Это не лень, это нехватка ресурсов. Сейчас вам нужна поддержка и резкое снижение давления на себя.";
+                renderItems(list, ["Уберите самоедство — вы ничего не должны", "Верните тепло и покой телу", "Подключите поддержку специалиста"]);
+                addCTA(cta, "Написать мне 'ПЕРЕГРУЗ'", LINKS.peregruz_tg, "bg-indigo-600 text-white shadow-lg shadow-indigo-200");
+                addCTA(cta, "Записаться на диагностику", LINKS.diagnostika, "bg-gray-100 text-gray-800");
+            }
+        }
+
+        function renderItems(list, items) {
+            list.innerHTML = items.map(i => `<li class="flex items-start"><span class="text-indigo-500 mr-2">✔</span> ${i}</li>`).join('');
+        }
+
+        function addCTA(container, text, url, classes) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = "_blank";
+            a.className = `block w-full text-center py-4 rounded-2xl font-semibold transition-all active:scale-95 ${classes}`;
+            a.innerText = text;
+            container.appendChild(a);
+        }
+    </script>
+</body>
+</html>
